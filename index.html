@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitud de Cita Médica</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            height: 100vh;
+            margin: 0;
+            padding-top: 20px;
+            padding-right: 20px;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        label {
+            font-weight: bold;
+            align-self: flex-start;
+            margin-top: 10px;
+        }
+        input, select, textarea {
+            width: 90%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        button {
+            width: 90%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .form-section {
+            width: 100%;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Agendamiento de Cita Médica</h1>
+        <form id="appointmentForm">
+            <div class="form-section">
+                <h3>Identificación</h3>
+                <label for="appointmentId">ID de Cita:</label>
+                <input type="text" id="appointmentId" name="appointmentId" placeholder="Ej: app-12345" required>
+                
+                <label for="status">Estado:</label>
+                <select id="status" name="status" required>
+                    <option value="proposed">Propuesta</option>
+                    <option value="pending">Pendiente</option>
+                    <option value="booked" selected>Agendada</option>
+                    <option value="cancelled">Cancelada</option>
+                </select>
+            </div>
+
+            <div class="form-section">
+                <h3>Tipo de Cita</h3>
+                <label for="appointmentType">Tipo:</label>
+                <select id="appointmentType" name="appointmentType" required>
+                    <option value="ROUTINE" selected>Rutina</option>
+                    <option value="WALKIN">Sin cita previa</option>
+                    <option value="CHECKUP">Control</option>
+                    <option value="EMERGENCY">Emergencia</option>
+                </select>
+                
+                <label for="serviceCategory">Categoría:</label>
+                <input type="text" id="serviceCategory" name="serviceCategory" placeholder="Ej: Consulta general">
+            </div>
+
+            <div class="form-section">
+                <h3>Horario</h3>
+                <label for="startDateTime">Fecha/Hora Inicio:</label>
+                <input type="datetime-local" id="startDateTime" name="startDateTime" required>
+                
+                <label for="endDateTime">Fecha/Hora Fin:</label>
+                <input type="datetime-local" id="endDateTime" name="endDateTime" required>
+            </div>
+
+            <div class="form-section">
+                <h3>Participantes</h3>
+                <label for="patientReference">Paciente (Referencia):</label>
+                <input type="text" id="patientReference" name="patientReference" placeholder="Ej: Patient/12345" required>
+                
+                <label for="patientDisplay">Nombre Paciente:</label>
+                <input type="text" id="patientDisplay" name="patientDisplay" placeholder="Nombre completo" required>
+                
+                <label for="practitionerReference">Médico (Referencia):</label>
+                <input type="text" id="practitionerReference" name="practitionerReference" placeholder="Ej: Practitioner/54321" required>
+                
+                <label for="practitionerDisplay">Nombre Médico:</label>
+                <input type="text" id="practitionerDisplay" name="practitionerDisplay" placeholder="Dr. Nombre Apellido" required>
+            </div>
+
+            <div class="form-section">
+                <h3>Información Adicional</h3>
+                <label for="createdDate">Fecha Creación:</label>
+                <input type="datetime-local" id="createdDate" name="createdDate">
+                
+                <label for="description">Descripción:</label>
+                <textarea id="description" name="description" placeholder="Motivo de la consulta..."></textarea>
+            </div>
+
+            <button type="submit">Agendar Cita</button>
+        </form>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
