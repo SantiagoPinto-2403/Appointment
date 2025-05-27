@@ -66,92 +66,45 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    async function submitAppointmentForm(event) {
-        event.preventDefault();
-    
-        const submitBtn = document.getElementById('submitBtn');
-        const originalBtnText = submitBtn.innerHTML;
-    
+    async function submitAppointmentForm(e) {
+        e.preventDefault();
+        
         try {
-        // Disable button and show loading state
+            // UI feedback
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner"></span> Procesando...';
-        
-        // Validate we have a verified service request
-            if (!currentServiceRequest?.id) {
-                throw new Error('Por favor verifique una solicitud válida primero');
+            
+            // Validate form
+            if (!currentServiceRequest) {
+                throw new Error('Por favor verifique la solicitud primero');
             }
-
-        // Gather form data
-            const appointmentDate = document.getElementById('appointmentDate').value;
-            const modality = document.getElementById('modality').value;
-            const notes = document.getElementById('notes').value.trim();
-
-        // Validate required fields
-            const errors = [];
-            if (!appointmentDate) errors.push('Seleccione una fecha válida');
-            if (!modality) errors.push('Seleccione una modalidad');
-        
-            if (errors.length > 0) {
-                throw new Error(errors.join('\n'));
+            
+            const validationErrors = validateForm();
+            if (validationErrors.length > 0) {
+                throw new Error(validationErrors.join('\n'));
             }
-
-        // Prepare appointment data
-            const appointmentData = {
-                resourceType: "Appointment",
-                status: "booked",
-                basedOn: [{
-                    reference: `ServiceRequest/${currentServiceRequest.id}`,
-                    display: `Solicitud ${currentServiceRequest.id}`
-                }],
-                start: `${appointmentDate}T09:00:00Z`,
-                end: `${appointmentDate}T09:30:00Z`,
-                appointmentType: {
-                    coding: [{
-                        system: "http://terminology.hl7.org/CodeSystem/v2-0276",
-                        code: modality
-                    }],
-                    text: getModalityText(modality)
-                },
-                description: notes || "Cita radiológica programada",
-                participant: [{
-                    actor: {
-                        reference: "Practitioner/radiologo",
-                        display: "Radiólogo asignado"
-                    },
-                    status: "accepted"
-                }],
-                patientInstruction: "Llegar 15 minutos antes con orden médica"
-            };
-
-        // Submit to server
-            const result = await submitAppointmentToServer(appointmentData);
-
-        // Show success message
-            showAlert(
-                'Cita creada exitosamente',
-                `ID de cita: ${result.id}<br>
-                Paciente: ${getPatientName(currentServiceRequest.subject)}<br>
-                Fecha: ${formatDate(appointmentDate)}`,
-                'success'
-            );
-
-        // Reset form for new appointment
-            document.getElementById('appointmentForm').reset();
-            document.getElementById('requestInfo').innerHTML = '';
-            currentServiceRequest = null;
-        
+            
+            // Double-check for duplicates (race condition protection)
+            const existingAppt = await checkExistingAppointment(currentServiceRequest.id);
+            if (existingAppt) {
+                throw new Error(`Ya existe una cita para esta solicitud (ID: ${existingAppt})`);
+            }
+            
+            // Create and submit appointment
+            const appointmentData = createAppointmentData();
+            const response = await submitAppointmentToServer(appointmentData);
+            
+            // Show success and reset form
+            showSuccessMessage(response);
+            initForm();
+            
         } catch (error) {
             showAlert('Error', error.message, 'error');
         } finally {
-        // Restore button state
             submitBtn.disabled = false;
-            submitBtn.innerHTML = originalBtnText;
+            submitBtn.innerHTML = '<span class="button-text">Agendar Cita</span>';
         }
     }
-
-// Attach event listener
-document.getElementById('appointmentForm').addEventListener('submit', submitAppointmentForm);
     
     // Helper Functions
     async function fetchServiceRequest(srId) {
@@ -277,41 +230,25 @@ document.getElementById('appointmentForm').addEventListener('submit', submitAppo
     }
 
     async function submitAppointmentToServer(appointmentData) {
-        try {
-        // Validate required fields
-            if (!appointmentData?.basedOn?.[0]?.reference) {
-                throw new Error('Missing ServiceRequest reference');
+        const response = await fetchWithTimeout(
+            'https://back-end-santiago.onrender.com/appointment', 
+            {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(appointmentData),
+                timeout: 10000
             }
-
-            const response = await fetchWithTimeout(
-                'https://back-end-santiago.onrender.com/appointment',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(appointmentData),
-                    timeout: 10000 // 10 second timeout for appointment creation
-                } 
-            );
-
-            return await response.json();
-        } catch (error) {
-            console.error('Appointment submission failed:', error);
+        );
         
-        // Enhanced error messages
-            let userMessage = error.message;
-            if (error.status === 409) {
-                userMessage = 'Ya existe una cita para esta solicitud';
-            } else if (error.status === 404) {
-                userMessage = 'La solicitud de servicio no fue encontrada';
-            } else if (error.message.includes('timed out')) {
-                userMessage = 'El servidor tardó demasiado en responder. Intente nuevamente.';
-            }
-        
-            throw new Error(userMessage);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Error al crear la cita');
         }
+        
+        return await response.json();
     }
 
     function showSuccessMessage(responseData) {
@@ -327,42 +264,19 @@ document.getElementById('appointmentForm').addEventListener('submit', submitAppo
     }
 
     // Utility Functions
-    async function fetchWithTimeout(url, options = {}) {
+    function fetchWithTimeout(url, options = {}) {
         const { timeout = 8000, ...fetchOptions } = options;
-    
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        try {
-            const response = await fetch(url, {
-                ...fetchOptions,
-                signal: controller.signal
-            });
         
-            clearTimeout(timeoutId);
-        
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => null);
-                const error = new Error(errorData?.message || `HTTP error! status: ${response.status}`);
-                error.status = response.status;
-                error.data = errorData;
-                throw error;
-            }
-        
-            return response;
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
-                throw new Error(`Request timed out after ${timeout}ms`);
-            }
-            throw error;
-        }
+        return fetch(url, { ...fetchOptions, signal: controller.signal })
+            .finally(() => clearTimeout(timeoutId));
     }
 
     function getPatientName(subjectReference) {
         if (!subjectReference) return 'Paciente no especificado';
         if (subjectReference.display) return subjectReference.display;
-        return subjectReference.reference?.split('/')?.[1] || 'Paciente';
+        return subjectReference.reference ? subjectReference.reference.split('/')[1] : 'Paciente';
     }
 
     function getProcedureName(code) {
@@ -393,14 +307,7 @@ document.getElementById('appointmentForm').addEventListener('submit', submitAppo
     }
 
     function formatDate(dateString) {
-        const options = { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        };
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         return new Date(dateString).toLocaleDateString('es-ES', options);
     }
 
