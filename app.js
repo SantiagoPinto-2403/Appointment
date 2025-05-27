@@ -1,124 +1,108 @@
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('appointmentForm');
+    const verifyBtn = document.getElementById('verifyRequestBtn');
     const submitBtn = document.getElementById('submitBtn');
-    const buttonText = submitBtn.querySelector('.texto-boton');
-    const spinner = document.getElementById('spinner');
-
+    
     // Set default date to today
-    const today = new Date();
-    document.getElementById('appointmentDate').valueAsDate = today;
+    document.getElementById('appointmentDate').valueAsDate = new Date();
 
-    form.addEventListener('submit', async function(event) {
-        event.preventDefault();
+    // Verify ServiceRequest
+    verifyBtn.addEventListener('click', async function() {
+        const srId = document.getElementById('serviceRequestId').value.trim();
         
-        // Show loading state
-        submitBtn.disabled = true;
-        spinner.style.display = 'inline-block';
-        buttonText.textContent = 'Procesando...';
+        if (!srId) {
+            showAlert('Error', 'Ingrese un ID de solicitud', 'error');
+            return;
+        }
         
         try {
-            // Create Appointment object with patient identifier
-            const appointment = {
-                resourceType: "Appointment",
-                status: document.getElementById('status').value,
-                appointmentType: {
-                    coding: [{
-                        system: "http://terminology.hl7.org/CodeSystem/v2-0276",
-                        code: document.getElementById('appointmentType').value,
-                        display: document.getElementById('appointmentType').options[document.getElementById('appointmentType').selectedIndex].text
-                    }]
-                },
-                start: new Date(document.getElementById('appointmentDate').value).toISOString(),
-                created: new Date().toISOString(),
-                basedOn: [{
-                    reference: `ServiceRequest/${document.getElementById('serviceRequestId').value}`
-                }],
-                participant: [
-                    {
-                        actor: {
-                            identifier: {
-                                system: document.getElementById('patientIdentifierSystem').value,
-                                value: document.getElementById('patientIdentifierValue').value
-                            },
-                            type: "Patient"
-                        },
-                        status: "accepted"
-                    },
-                    {
-                        actor: {
-                            reference: document.getElementById('practitionerReference').value,
-                            type: "Practitioner"
-                        },
-                        status: "accepted"
-                    }
-                ]
-            };
-
-            // Add description if provided
-            const description = document.getElementById('description').value.trim();
-            if (description) {
-                appointment.description = description;
+            verifyBtn.disabled = true;
+            verifyBtn.innerHTML = '<span class="spinner"></span> Verificando...';
+            
+            const response = await fetch(`https://back-end-santiago.onrender.com/servicerequest/${srId}`);
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.detail || 'Solicitud no encontrada');
             }
-
-            // Send to backend
+            
+            document.getElementById('requestInfo').innerHTML = `
+                <strong>Solicitud válida</strong><br>
+                Prioridad: ${data.priority || 'No especificada'}
+            `;
+            
+        } catch (error) {
+            showAlert('Error', error.message, 'error');
+            document.getElementById('requestInfo').textContent = '';
+        } finally {
+            verifyBtn.disabled = false;
+            verifyBtn.textContent = 'Verificar';
+        }
+    });
+    
+    // Form submission
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        try {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Procesando...';
+            
+            // Verify request was checked
+            if (!document.getElementById('requestInfo').textContent) {
+                throw new Error('Debe verificar la solicitud primero');
+            }
+            
+            const appointmentData = {
+                resourceType: "Appointment",
+                status: "booked",  // Required by FHIR
+                basedOn: [{
+                    reference: `ServiceRequest/${document.getElementById('serviceRequestId').value.trim()}`
+                }],
+                start: document.getElementById('appointmentDate').value,
+                end: document.getElementById('appointmentDate').value,  // Same day
+                appointmentType: {
+                    text: document.getElementById('modality').value
+                },
+                description: document.getElementById('notes').value.trim() || "Cita radiológica"
+            };
+            
             const response = await fetch('https://back-end-santiago.onrender.com/appointment', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(appointment)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(appointmentData)
             });
-
+            
+            const data = await response.json();
+            
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Error al crear la cita');
+                throw new Error(data.detail || 'Error al agendar');
             }
-
-            // Show success
-            await Swal.fire({
-                title: '¡Éxito!',
-                text: 'La cita ha sido agendada correctamente',
-                icon: 'success',
-                confirmButtonColor: '#7c34db'
-            });
-
-            // Reset form
+            
+            showAlert('Éxito', 'Cita agendada correctamente', 'success');
             form.reset();
+            document.getElementById('requestInfo').textContent = '';
             document.getElementById('appointmentDate').valueAsDate = new Date();
-
+            
         } catch (error) {
-            console.error('Error:', error);
-            await Swal.fire({
-                title: 'Error',
-                text: error.message,
-                icon: 'error',
-                confirmButtonColor: '#7c34db'
-            });
+            showAlert('Error', error.message, 'error');
         } finally {
-            // Reset button state
             submitBtn.disabled = false;
-            spinner.style.display = 'none';
-            buttonText.textContent = 'Agendar Cita';
+            submitBtn.innerHTML = '<span class="button-text">Agendar Cita</span>';
         }
     });
-
-    // Validate ServiceRequest ID when leaving the field
-    document.getElementById('serviceRequestId').addEventListener('blur', async function() {
-        const serviceRequestId = this.value.trim();
-        if (!serviceRequestId) return;
-        
-        try {
-            const response = await fetch(`https://back-end-santiago.onrender.com/servicerequest/${serviceRequestId}`);
-            if (!response.ok) {
-                await Swal.fire({
-                    title: 'Advertencia',
-                    text: 'La solicitud de servicio no existe',
-                    icon: 'warning',
-                    confirmButtonColor: '#7c34db'
-                });
-            }
-        } catch (error) {
-            console.error('Error validating ServiceRequest:', error);
+    
+    function showAlert(title, text, icon) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ 
+                title, 
+                text, 
+                icon,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#3498db'
+            });
+        } else {
+            alert(`${title}\n\n${text}`);
         }
-    });
+    }
 });
