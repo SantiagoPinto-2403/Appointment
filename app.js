@@ -2,17 +2,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('appointmentForm');
     const verifyBtn = document.getElementById('verifyRequestBtn');
     const submitBtn = document.getElementById('submitBtn');
-    let currentServiceRequest = null; // Store verified request
     
     // Set default date to today
     document.getElementById('appointmentDate').valueAsDate = new Date();
 
-    // ServiceRequest Verification
+    // Verify ServiceRequest
     verifyBtn.addEventListener('click', async function() {
         const srId = document.getElementById('serviceRequestId').value.trim();
         
         if (!srId) {
-            showAlert('Error', 'Por favor ingrese el ID de la solicitud', 'error');
+            showAlert('Error', 'Ingrese un ID de solicitud', 'error');
             return;
         }
         
@@ -20,50 +19,28 @@ document.addEventListener('DOMContentLoaded', function() {
             verifyBtn.disabled = true;
             verifyBtn.innerHTML = '<span class="spinner"></span> Verificando...';
             
-            // First try direct ID lookup
-            let response = await fetch(`https://back-end-santiago.onrender.com/servicerequest/${srId}`);
-            let data = await response.json();
+            const response = await fetch(`https://back-end-santiago.onrender.com/servicerequest/${srId}`);
+            const data = await response.json();
             
-            // If not found, try by identifier
             if (!response.ok) {
-                response = await fetch(`https://back-end-santiago.onrender.com/servicerequest?system=http://hospital.sistema/solicitudes&value=${srId}`);
-                data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error('Solicitud no encontrada');
-                }
+                throw new Error(data.detail || 'Solicitud no encontrada');
             }
             
-            currentServiceRequest = data;
-            
-            // Display request info
-            const patientId = currentServiceRequest.subject?.identifier?.value || 'N/A';
-            const priorityMap = {
-                'routine': 'Rutina',
-                'urgent': 'Urgente',
-                'asap': 'ASAP',
-                'stat': 'STAT'
-            };
-            const priority = priorityMap[currentServiceRequest.priority] || currentServiceRequest.priority;
-            
             document.getElementById('requestInfo').innerHTML = `
-                <strong>Solicitud Verificada</strong><br>
-                ID: ${currentServiceRequest.id || srId}<br>
-                Paciente: ${patientId}<br>
-                Prioridad: ${priority}
+                <strong>Solicitud válida</strong><br>
+                Prioridad: ${data.priority || 'No especificada'}
             `;
             
         } catch (error) {
-            currentServiceRequest = null;
+            showAlert('Error', error.message, 'error');
             document.getElementById('requestInfo').textContent = '';
-            showAlert('Error', error.message || 'Error al verificar la solicitud', 'error');
         } finally {
             verifyBtn.disabled = false;
             verifyBtn.textContent = 'Verificar';
         }
     });
-
-    // Form Submission
+    
+    // Form submission
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
         
@@ -71,68 +48,39 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner"></span> Procesando...';
             
-            // Verify ServiceRequest was checked
-            if (!currentServiceRequest) {
-                throw new Error('Debe verificar una solicitud de servicio primero');
+            // Verify request was checked
+            if (!document.getElementById('requestInfo').textContent) {
+                throw new Error('Debe verificar la solicitud primero');
             }
             
-            // Get form values
-            const appointmentDate = document.getElementById('appointmentDate').value;
-            const modality = document.getElementById('modality').value;
-            const notes = document.getElementById('notes').value.trim();
-            
-            if (!appointmentDate) {
-                throw new Error('Seleccione una fecha para la cita');
-            }
-            
-            if (!modality) {
-                throw new Error('Seleccione una modalidad');
-            }
-            
-            // Build appointment
             const appointmentData = {
                 resourceType: "Appointment",
-                status: "booked",
+                status: "booked",  // Required by FHIR
                 basedOn: [{
-                    reference: `ServiceRequest/${currentServiceRequest.id}`
+                    reference: `ServiceRequest/${document.getElementById('serviceRequestId').value.trim()}`
                 }],
-                start: appointmentDate,
-                end: appointmentDate,
+                start: document.getElementById('appointmentDate').value,
+                end: document.getElementById('appointmentDate').value,  // Same day
                 appointmentType: {
-                    coding: [{
-                        system: "http://hl7.org/fhir/v2/0276",
-                        code: modality
-                    }],
-                    text: getModalityText(modality)
+                    text: document.getElementById('modality').value
                 },
-                description: notes || "Cita radiológica programada",
-                participant: [{
-                    actor: {
-                        reference: "Practitioner/radiologo-default"
-                    },
-                    status: "accepted"
-                }]
+                description: document.getElementById('notes').value.trim() || "Cita radiológica"
             };
             
-            // Submit to backend
             const response = await fetch('https://back-end-santiago.onrender.com/appointment', {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(appointmentData)
             });
             
             const data = await response.json();
             
             if (!response.ok) {
-                throw new Error(data.detail || 'Error al crear la cita');
+                throw new Error(data.detail || 'Error al agendar');
             }
             
-            showAlert('Éxito', `Cita creada con ID: ${data.id}`, 'success');
+            showAlert('Éxito', 'Cita agendada correctamente', 'success');
             form.reset();
-            currentServiceRequest = null;
             document.getElementById('requestInfo').textContent = '';
             document.getElementById('appointmentDate').valueAsDate = new Date();
             
@@ -144,23 +92,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    function getModalityText(code) {
-        const modalities = {
-            'RX': 'Radiografía',
-            'CT': 'Tomografía Computarizada',
-            'MRI': 'Resonancia Magnética',
-            'US': 'Ultrasonido',
-            'MG': 'Mamografía'
-        };
-        return modalities[code] || code;
-    }
-    
     function showAlert(title, text, icon) {
         if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: title,
-                text: text,
-                icon: icon,
+            Swal.fire({ 
+                title, 
+                text, 
+                icon,
                 confirmButtonText: 'OK',
                 confirmButtonColor: '#3498db'
             });
