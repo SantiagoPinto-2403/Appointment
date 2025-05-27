@@ -4,14 +4,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitBtn = document.getElementById('submitBtn');
     
     // Set default date to today
-    document.getElementById('appointmentDate').valueAsDate = new Date();
+    const today = new Date();
+    document.getElementById('appointmentDate').valueAsDate = today;
 
-    // Verify ServiceRequest
+    // Verify Service Request
     verifyBtn.addEventListener('click', async function() {
         const srId = document.getElementById('serviceRequestId').value.trim();
         
         if (!srId) {
-            showAlert('Error', 'Ingrese un ID de solicitud', 'error');
+            showAlert('Error', 'Por favor ingrese el ID de la solicitud de servicio', 'error');
             return;
         }
         
@@ -23,12 +24,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (!response.ok) {
-                throw new Error(data.detail || 'Solicitud no encontrada');
+                throw new Error(data.detail || 'No se encontró la solicitud de servicio');
             }
+            
+            // Display request info
+            const patientName = data.subject?.identifier?.value 
+                ? `Paciente: ${data.subject.identifier.value}`
+                : 'Paciente no especificado';
+                
+            const priorityMap = {
+                'routine': 'Rutina',
+                'urgent': 'Urgente',
+                'asap': 'Lo antes posible',
+                'stat': 'Inmediato'
+            };
+            
+            const priority = priorityMap[data.priority] || data.priority || 'No especificada';
             
             document.getElementById('requestInfo').innerHTML = `
                 <strong>Solicitud válida</strong><br>
-                Prioridad: ${data.priority || 'No especificada'}
+                ${patientName}<br>
+                Prioridad: ${priority}
             `;
             
         } catch (error) {
@@ -39,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
             verifyBtn.textContent = 'Verificar';
         }
     });
-    
+
     // Form submission
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -50,39 +66,64 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Verify request was checked
             if (!document.getElementById('requestInfo').textContent) {
-                throw new Error('Debe verificar la solicitud primero');
+                throw new Error('Por favor verifique la solicitud de servicio primero');
             }
             
+            // Get form values
+            const srId = document.getElementById('serviceRequestId').value.trim();
+            const appointmentDate = document.getElementById('appointmentDate').value;
+            const modality = document.getElementById('modality').value;
+            const notes = document.getElementById('notes').value.trim();
+            
+            if (!appointmentDate) {
+                throw new Error('Por favor seleccione una fecha para la cita');
+            }
+            
+            if (!modality) {
+                throw new Error('Por favor seleccione una modalidad');
+            }
+            
+            // Build appointment object
             const appointmentData = {
                 resourceType: "Appointment",
-                status: "booked",  // Required by FHIR
+                status: "booked",
                 basedOn: [{
-                    reference: `ServiceRequest/${document.getElementById('serviceRequestId').value.trim()}`
+                    reference: `ServiceRequest/${srId}`
                 }],
-                start: document.getElementById('appointmentDate').value,
-                end: document.getElementById('appointmentDate').value,  // Same day
+                start: appointmentDate,
+                end: appointmentDate, // Same day
                 appointmentType: {
-                    text: document.getElementById('modality').value
+                    text: modality
                 },
-                description: document.getElementById('notes').value.trim() || "Cita radiológica"
+                description: notes || "Cita radiológica programada",
+                participant: [{
+                    actor: {
+                        reference: "Practitioner/radiologo" // Default radiologist
+                    },
+                    status: "accepted"
+                }]
             };
             
+            // Submit to backend
             const response = await fetch('https://back-end-santiago.onrender.com/appointment', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
                 body: JSON.stringify(appointmentData)
             });
             
             const data = await response.json();
             
             if (!response.ok) {
-                throw new Error(data.detail || 'Error al agendar');
+                throw new Error(data.detail || 'Error al agendar la cita');
             }
             
             showAlert('Éxito', 'Cita agendada correctamente', 'success');
             form.reset();
             document.getElementById('requestInfo').textContent = '';
-            document.getElementById('appointmentDate').valueAsDate = new Date();
+            document.getElementById('appointmentDate').valueAsDate = today;
             
         } catch (error) {
             showAlert('Error', error.message, 'error');
@@ -92,12 +133,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // Alert helper function
     function showAlert(title, text, icon) {
         if (typeof Swal !== 'undefined') {
-            Swal.fire({ 
-                title, 
-                text, 
-                icon,
+            Swal.fire({
+                title: title,
+                text: text,
+                icon: icon,
                 confirmButtonText: 'OK',
                 confirmButtonColor: '#3498db'
             });
