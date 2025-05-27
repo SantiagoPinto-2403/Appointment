@@ -141,7 +141,7 @@
     <div class="container">
         <h1>Agendar Cita</h1>
         <form id="appointmentForm">
-            <!-- Service Request Reference -->
+            <!-- Service Request -->
             <div class="form-group">
                 <label for="serviceRequestId" class="required-field">Solicitud de Servicio</label>
                 <div class="search-container">
@@ -162,17 +162,16 @@
                 <select id="modality" required>
                     <option value="">Seleccione...</option>
                     <option value="RX">Rayos X</option>
-                    <option value="CT">Tomografía (CT)</option>
-                    <option value="MRI">Resonancia Magnética (MRI)</option>
+                    <option value="CT">Tomografía</option>
+                    <option value="MRI">Resonancia</option>
                     <option value="US">Ultrasonido</option>
-                    <option value="MG">Mamografía</option>
                 </select>
             </div>
             
-            <!-- Additional Information -->
+            <!-- Additional Info -->
             <div class="form-group">
                 <label for="notes">Notas Adicionales</label>
-                <textarea id="notes" placeholder="Indicaciones especiales, preparación requerida, etc."></textarea>
+                <textarea id="notes" placeholder="Preparación requerida, alergias, etc."></textarea>
             </div>
             
             <button type="submit" id="submitBtn">
@@ -180,7 +179,7 @@
             </button>
         </form>
     </div>
-    
+
     <script src="app.js"></script>
 </body>
 </html>

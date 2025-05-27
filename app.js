@@ -1,150 +1,164 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('appointmentForm');
-    const verifyBtn = document.getElementById('verifyRequestBtn');
-    const submitBtn = document.getElementById('submitBtn');
-    
-    // Set default date to today
-    const today = new Date();
-    document.getElementById('appointmentDate').valueAsDate = today;
+            const form = document.getElementById('appointmentForm');
+            const verifyBtn = document.getElementById('verifyRequestBtn');
+            const submitBtn = document.getElementById('submitBtn');
+            let currentServiceRequest = null;
+            
+            // Set default date to today
+            document.getElementById('appointmentDate').valueAsDate = new Date();
 
-    // Verify Service Request
-    verifyBtn.addEventListener('click', async function() {
-        const srId = document.getElementById('serviceRequestId').value.trim();
-        
-        if (!srId) {
-            showAlert('Error', 'Por favor ingrese el ID de la solicitud de servicio', 'error');
-            return;
-        }
-        
-        try {
-            verifyBtn.disabled = true;
-            verifyBtn.innerHTML = '<span class="spinner"></span> Verificando...';
-            
-            const response = await fetch(`https://back-end-santiago.onrender.com/servicerequest/${srId}`);
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.detail || 'No se encontró la solicitud de servicio');
-            }
-            
-            // Display request info
-            const patientName = data.subject?.identifier?.value 
-                ? `Paciente: ${data.subject.identifier.value}`
-                : 'Paciente no especificado';
+            // Verify ServiceRequest
+            verifyBtn.addEventListener('click', async function() {
+                const srId = document.getElementById('serviceRequestId').value.trim();
                 
-            const priorityMap = {
-                'routine': 'Rutina',
-                'urgent': 'Urgente',
-                'asap': 'Lo antes posible',
-                'stat': 'Inmediato'
-            };
-            
-            const priority = priorityMap[data.priority] || data.priority || 'No especificada';
-            
-            document.getElementById('requestInfo').innerHTML = `
-                <strong>Solicitud válida</strong><br>
-                ${patientName}<br>
-                Prioridad: ${priority}
-            `;
-            
-        } catch (error) {
-            showAlert('Error', error.message, 'error');
-            document.getElementById('requestInfo').textContent = '';
-        } finally {
-            verifyBtn.disabled = false;
-            verifyBtn.textContent = 'Verificar';
-        }
-    });
+                if (!srId) {
+                    showAlert('Error', 'Ingrese el ID de la solicitud', 'error');
+                    return;
+                }
+                
+                try {
+                    verifyBtn.disabled = true;
+                    verifyBtn.innerHTML = '<span class="spinner"></span> Verificando...';
+                    
+                    // Check if appointment already exists
+                    const existingAppt = await checkExistingAppointment(srId);
+                    if (existingAppt) {
+                        throw new Error(`Ya existe una cita para esta solicitud (ID: ${existingAppt})`);
+                    }
+                    
+                    // Verify ServiceRequest exists
+                    const response = await fetch(`https://back-end-santiago.onrender.com/servicerequest/${srId}`);
+                    if (!response.ok) {
+                        // Fallback: Try by identifier
+                        const altResponse = await fetch(
+                            `https://back-end-santiago.onrender.com/servicerequest?system=http://hospital.sistema/solicitudes&value=${srId}`
+                        );
+                        if (!altResponse.ok) {
+                            throw new Error('Solicitud no encontrada');
+                        }
+                        currentServiceRequest = await altResponse.json();
+                    } else {
+                        currentServiceRequest = await response.json();
+                    }
+                    
+                    // Display request info
+                    document.getElementById('requestInfo').innerHTML = `
+                        <strong>Solicitud verificada</strong><br>
+                        ID: ${currentServiceRequest.id || srId}<br>
+                        Prioridad: ${mapPriority(currentServiceRequest.priority)}<br>
+                        ${currentServiceRequest.note?.[0]?.text || ''}
+                    `;
+                    
+                } catch (error) {
+                    currentServiceRequest = null;
+                    document.getElementById('requestInfo').textContent = '';
+                    showAlert('Error', error.message, 'error');
+                } finally {
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = 'Verificar';
+                }
+            });
 
-    // Form submission
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        try {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner"></span> Procesando...';
-            
-            // Verify request was checked
-            if (!document.getElementById('requestInfo').textContent) {
-                throw new Error('Por favor verifique la solicitud de servicio primero');
-            }
-            
-            // Get form values
-            const srId = document.getElementById('serviceRequestId').value.trim();
-            const appointmentDate = document.getElementById('appointmentDate').value;
-            const modality = document.getElementById('modality').value;
-            const notes = document.getElementById('notes').value.trim();
-            
-            if (!appointmentDate) {
-                throw new Error('Por favor seleccione una fecha para la cita');
-            }
-            
-            if (!modality) {
-                throw new Error('Por favor seleccione una modalidad');
-            }
-            
-            // Build appointment object
-            const appointmentData = {
-                resourceType: "Appointment",
-                status: "booked",
-                basedOn: [{
-                    reference: `ServiceRequest/${srId}`
-                }],
-                start: appointmentDate,
-                end: appointmentDate, // Same day
-                appointmentType: {
-                    text: modality
-                },
-                description: notes || "Cita radiológica programada",
-                participant: [{
-                    actor: {
-                        reference: "Practitioner/radiologo" // Default radiologist
-                    },
-                    status: "accepted"
-                }]
-            };
-            
-            // Submit to backend
-            const response = await fetch('https://back-end-santiago.onrender.com/appointment', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(appointmentData)
+            // Form submission
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                try {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner"></span> Procesando...';
+                    
+                    // Validate
+                    if (!currentServiceRequest) {
+                        throw new Error('Verifique la solicitud primero');
+                    }
+                    
+                    const appointmentDate = document.getElementById('appointmentDate').value;
+                    const modality = document.getElementById('modality').value;
+                    const notes = document.getElementById('notes').value.trim();
+                    
+                    if (!appointmentDate) throw new Error('Seleccione una fecha');
+                    if (!modality) throw new Error('Seleccione una modalidad');
+                    
+                    // Check again for duplicates (race condition protection)
+                    const existingAppt = await checkExistingAppointment(currentServiceRequest.id);
+                    if (existingAppt) {
+                        throw new Error(`Ya existe una cita para esta solicitud (ID: ${existingAppt})`);
+                    }
+                    
+                    // Create appointment
+                    const response = await fetch('https://back-end-santiago.onrender.com/appointment', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            resourceType: "Appointment",
+                            status: "booked",
+                            basedOn: [{ reference: `ServiceRequest/${currentServiceRequest.id}` }],
+                            start: appointmentDate,
+                            end: appointmentDate,
+                            appointmentType: { text: modality },
+                            description: notes || "Cita radiológica",
+                            participant: [{
+                                actor: { reference: "Practitioner/radiologo" },
+                                status: "accepted"
+                            }]
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.detail || 'Error al agendar');
+                    }
+                    
+                    showAlert('Éxito', `Cita creada (ID: ${data.id})`, 'success');
+                    form.reset();
+                    currentServiceRequest = null;
+                    document.getElementById('requestInfo').textContent = '';
+                    document.getElementById('appointmentDate').valueAsDate = new Date();
+                    
+                } catch (error) {
+                    showAlert('Error', error.message, 'error');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<span class="button-text">Agendar Cita</span>';
+                }
             });
             
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.detail || 'Error al agendar la cita');
+            // Helper functions
+            async function checkExistingAppointment(serviceRequestId) {
+                try {
+                    const response = await fetch(
+                        `https://back-end-santiago.onrender.com/appointment/service-request/${serviceRequestId}`
+                    );
+                    const data = await response.json();
+                    return data.length > 0 ? data[0].id : null;
+                } catch (error) {
+                    console.error("Check error:", error);
+                    return null;
+                }
             }
             
-            showAlert('Éxito', 'Cita agendada correctamente', 'success');
-            form.reset();
-            document.getElementById('requestInfo').textContent = '';
-            document.getElementById('appointmentDate').valueAsDate = today;
+            function mapPriority(priority) {
+                const priorities = {
+                    'routine': 'Rutina',
+                    'urgent': 'Urgente',
+                    'asap': 'ASAP',
+                    'stat': 'STAT'
+                };
+                return priorities[priority] || priority;
+            }
             
-        } catch (error) {
-            showAlert('Error', error.message, 'error');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<span class="button-text">Agendar Cita</span>';
-        }
-    });
-    
-    // Alert helper function
-    function showAlert(title, text, icon) {
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: title,
-                text: text,
-                icon: icon,
-                confirmButtonText: 'OK',
-                confirmButtonColor: '#3498db'
-            });
-        } else {
-            alert(`${title}\n\n${text}`);
-        }
-    }
-});
+            function showAlert(title, text, icon) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: title,
+                        text: text,
+                        icon: icon,
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#3498db'
+                    });
+                } else {
+                    alert(`${title}\n\n${text}`);
+                }
+            }
+        });
