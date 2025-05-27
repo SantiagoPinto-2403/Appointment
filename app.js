@@ -230,25 +230,81 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function submitAppointmentToServer(appointmentData) {
-        const response = await fetchWithTimeout(
-            'https://back-end-santiago.onrender.com/appointment', 
-            {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(appointmentData),
-                timeout: 10000
+        try {
+            console.log("Submitting appointment:", appointmentData);  // Debug log
+        
+            const response = await fetchWithTimeout(
+                'https://back-end-santiago.onrender.com/appointment', 
+                {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(appointmentData),
+                    timeout: 10000
+                }
+            );
+        
+            if (!response.ok) {
+                let errorDetail = 'Error al crear la cita';
+                try {
+                    const errorData = await response.json();
+                    errorDetail = errorData.detail || errorDetail;
+                } catch (e) {
+                    console.error("Error parsing error response:", e);
+                }
+                throw new Error(errorDetail);
             }
-        );
         
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || 'Error al crear la cita');
+            return await response.json();
+        
+        } catch (error) {
+            console.error("Appointment submission failed:", error);
+            throw new Error(`Failed to create appointment: ${error.message}`);
         }
-        
-        return await response.json();
+    }
+
+    function createAppointmentData() {
+        const appointmentDate = document.getElementById('appointmentDate').value;
+        const modality = document.getElementById('modality').value;
+        const notes = document.getElementById('notes').value.trim();
+    
+    // Ensure dates are properly formatted
+        const startTime = `${appointmentDate}T09:00:00Z`;
+        const endTime = `${appointmentDate}T09:30:00Z`;
+    
+        return {
+            resourceType: "Appointment",
+            status: "booked",
+            basedOn: [{ 
+                reference: `ServiceRequest/${currentServiceRequest.id}`,
+                display: `Solicitud ${currentServiceRequest.id}`
+            }],
+            start: startTime,
+            end: endTime,
+            appointmentType: { 
+                coding: [{
+                    system: "http://terminology.hl7.org/CodeSystem/v2-0276",
+                    code: modality,
+                    display: getModalityText(modality)
+                }],
+                text: getModalityText(modality)
+            },
+            description: notes || "Cita radiológica programada",
+            participant: [{
+                actor: { 
+                    reference: "Practitioner/radiologo",
+                    display: "Radiólogo asignado",
+                    type: "Practitioner"
+                },
+                status: "accepted",
+                required: "required"
+            }],
+            created: new Date().toISOString(),
+            minutesDuration: 30,
+            patientInstruction: "Llegar 15 minutos antes con orden médica"
+        };
     }
 
     function showSuccessMessage(responseData) {
