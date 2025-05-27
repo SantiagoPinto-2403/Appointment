@@ -85,7 +85,7 @@
         }
         
         button:hover {
-            background-color: #7c34db;
+            background-color: #6a2fc1;
         }
         
         button:disabled {
@@ -137,14 +137,17 @@
         <form id="appointmentForm" aria-labelledby="form-title">
             <div id="form-title" class="region-live" aria-live="polite"></div>
             
+            <!-- Service Request -->
             <div class="grupo-formulario">
                 <label for="serviceRequestId" class="campo-requerido">ID de Solicitud de Servicio</label>
                 <input type="text" id="serviceRequestId" name="serviceRequestId" required aria-required="true" placeholder="Ej: 507f1f77bcf86cd799439011">
             </div>
             
+            <!-- Appointment Details -->
             <div class="grupo-formulario">
                 <label for="status" class="campo-requerido">Estado</label>
                 <select id="status" name="status" required aria-required="true">
+                    <option value="">Seleccione un estado</option>
                     <option value="proposed">Propuesta</option>
                     <option value="pending">Pendiente</option>
                     <option value="booked" selected>Agendada</option>
@@ -155,7 +158,8 @@
             <div class="grupo-formulario">
                 <label for="appointmentType" class="campo-requerido">Tipo de Cita</label>
                 <select id="appointmentType" name="appointmentType" required aria-required="true">
-                    <option value="ROUTINE" selected>Rutina</option>
+                    <option value="">Seleccione un tipo</option>
+                    <option value="ROUTINE">Rutina</option>
                     <option value="WALKIN">Sin cita previa</option>
                     <option value="CHECKUP">Control</option>
                     <option value="EMERGENCY">Emergencia</option>
@@ -167,23 +171,37 @@
                 <input type="date" id="appointmentDate" name="appointmentDate" required aria-required="true">
             </div>
             
+            <!-- Patient Identifier -->
             <div class="grupo-formulario">
-                <label for="patientReference" class="campo-requerido">Referencia del Paciente</label>
-                <input type="text" id="patientReference" name="patientReference" required aria-required="true" placeholder="Ej: Patient/12345">
+                <label for="patientIdentifierSystem" class="campo-requerido">Tipo de Documento</label>
+                <select id="patientIdentifierSystem" name="patientIdentifierSystem" required aria-required="true">
+                    <option value="">Seleccione un tipo</option>
+                    <option value="http://cedula">Cédula de Ciudadanía</option>
+                    <option value="http://pasaporte">Pasaporte</option>
+                    <option value="http://tarjeta-identidad">Tarjeta de Identidad</option>
+                </select>
             </div>
             
+            <div class="grupo-formulario">
+                <label for="patientIdentifierValue" class="campo-requerido">Número de Documento</label>
+                <input type="text" id="patientIdentifierValue" name="patientIdentifierValue" required aria-required="true" placeholder="Ej: 1234567890">
+            </div>
+            
+            <!-- Practitioner -->
             <div class="grupo-formulario">
                 <label for="practitionerReference" class="campo-requerido">Referencia del Médico</label>
                 <input type="text" id="practitionerReference" name="practitionerReference" required aria-required="true" placeholder="Ej: Practitioner/54321">
             </div>
             
+            <!-- Description -->
             <div class="grupo-formulario">
                 <label for="description">Descripción</label>
                 <textarea id="description" name="description" rows="3" placeholder="Motivo de la consulta..."></textarea>
             </div>
             
-            <button type="submit" aria-label="Enviar formulario de agendamiento">
+            <button type="submit" id="submitBtn" aria-label="Enviar formulario de agendamiento">
                 <span class="texto-boton">Agendar Cita</span>
+                <span class="spinner" id="spinner" style="display: none;"></span>
             </button>
         </form>
     </div>
