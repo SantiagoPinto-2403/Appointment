@@ -3,17 +3,143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agendar Cita Radiológica</title>
+    <title>Solicitud de Servicio</title>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        /* All CSS styles from previous implementation */
-        /* ... */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            margin-top: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        
+        .required-field::after {
+            content: " *";
+            color: #e74c3c;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .search-container {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .search-container input {
+            flex: 1;
+        }
+        
+        .search-container button {
+            width: auto;
+            padding: 10px 15px;
+        }
+        
+        .patient-info {
+            padding: 10px;
+            background-color: #f0f8ff;
+            border-radius: 6px;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Agendar Cita Radiológica</h1>
         <form id="appointmentForm">
+            <!-- Service Request Verification -->
             <div class="form-group">
                 <label for="serviceRequestId" class="required-field">Solicitud de Servicio</label>
                 <div class="search-container">
@@ -23,6 +149,7 @@
                 <div id="requestInfo" class="info-display"></div>
             </div>
             
+            <!-- Appointment Details -->
             <div class="form-group">
                 <label for="appointmentDate" class="required-field">Fecha de Cita</label>
                 <input type="date" id="appointmentDate" required>
@@ -36,14 +163,18 @@
                     <option value="CT">Tomografía Computarizada</option>
                     <option value="MRI">Resonancia Magnética</option>
                     <option value="US">Ultrasonido</option>
+                    <option value="MG">Mamografía</option>
+                    <option value="NM">Medicina Nuclear</option>
                 </select>
             </div>
             
+            <!-- Additional Information -->
             <div class="form-group">
                 <label for="notes">Notas Adicionales</label>
                 <textarea id="notes" placeholder="Preparación requerida, alergias, observaciones..."></textarea>
             </div>
             
+            <!-- Submit Button -->
             <button type="submit" id="submitBtn">
                 <span class="button-text">Agendar Cita</span>
             </button>
