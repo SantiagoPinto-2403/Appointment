@@ -66,43 +66,52 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    async function submitAppointmentForm(e) {
-        e.preventDefault();
-        
+    async function submitAppointmentForm(event) {
+        event.preventDefault();
+    
+        const submitBtn = document.getElementById('submitBtn');
         try {
-            // UI feedback
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner"></span> Procesando...';
-            
-            // Validate form
-            if (!currentServiceRequest) {
-                throw new Error('Por favor verifique la solicitud primero');
-            }
-            
-            const validationErrors = validateForm();
-            if (validationErrors.length > 0) {
-                throw new Error(validationErrors.join('\n'));
-            }
-            
-            // Double-check for duplicates (race condition protection)
-            const existingAppt = await checkExistingAppointment(currentServiceRequest.id);
-            if (existingAppt) {
-                throw new Error(`Ya existe una cita para esta solicitud (ID: ${existingAppt})`);
-            }
-            
-            // Create and submit appointment
-            const appointmentData = createAppointmentData();
-            const response = await submitAppointmentToServer(appointmentData);
-            
-            // Show success and reset form
-            showSuccessMessage(response);
-            initForm();
-            
+
+        // Gather form data
+            const formData = {
+                resourceType: "Appointment",
+                status: "booked",
+                basedOn: [{ 
+                    reference: `ServiceRequest/${currentServiceRequest.id}`,
+                    display: `Solicitud ${currentServiceRequest.id}`
+                }],
+                start: `${document.getElementById('appointmentDate').value}T09:00:00Z`,
+                end: `${document.getElementById('appointmentDate').value}T09:30:00Z`,
+                appointmentType: {
+                    coding: [{
+                        system: "http://terminology.hl7.org/CodeSystem/v2-0276",
+                        code: document.getElementById('modality').value
+                    }],
+                    text: getModalityText(document.getElementById('modality').value)
+                },
+                description: document.getElementById('notes').value.trim() || "Cita radiológica programada",
+                participant: [{
+                    actor: { 
+                        reference: "Practitioner/radiologo",
+                        display: "Radiólogo asignado"
+                    },
+                    status: "accepted"
+                }]
+            };
+
+        // Submit to server
+            const result = await submitAppointmentToServer(formData);
+        
+        // Show success message
+            showAppointmentSuccess(result.id);
+
         } catch (error) {
-            showAlert('Error', error.message, 'error');
+            showAppointmentError(error);
         } finally {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<span class="button-text">Agendar Cita</span>';
+            submitBtn.innerHTML = 'Agendar Cita';
         }
     }
     
@@ -230,27 +239,52 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function submitAppointmentToServer(appointmentData) {
-        const response = await fetchWithTimeout(
-            'https://back-end-santiago.onrender.com/appointment', 
-            {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(appointmentData),
-                timeout: 10000
+        try {
+        // Validate required fields
+            if (!appointmentData.basedOn || !appointmentData.basedOn[0]?.reference) {
+                throw new Error('Missing ServiceRequest reference');
             }
-        );
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || 'Error al crear la cita');
+
+        // Ensure dates are properly formatted
+            if (!isValidISOString(appointmentData.start) || !isValidISOString(appointmentData.end)) {
+                throw new Error('Invalid date format');
+            }
+
+            const response = await fetchWithTimeout(
+                'https://back-end-santiago.onrender.com/appointment',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(appointmentData),
+                    timeout: 10000
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.detail || 'Failed to create appointment';
+                throw new Error(errorMessage);
+            }
+
+            return await response.json();
+
+        } catch (error) {
+            console.error('Appointment submission failed:', error);
+            throw error;
         }
-        
-        return await response.json();
     }
 
+    function isValidISOString(dateString) {
+        try {
+            return new Date(dateString).toISOString() === dateString;
+        } catch (e) {
+            return false;
+        }
+    }
+    
     function showSuccessMessage(responseData) {
         showAlert(
             'Cita creada exitosamente', 
@@ -324,6 +358,33 @@ document.addEventListener('DOMContentLoaded', function() {
             alert(`${title}\n\n${html.replace(/<[^>]*>/g, '')}`);
         }
     }
+
+    function showAppointmentSuccess(appointmentId) {
+        Swal.fire({
+            title: 'Cita creada',
+            html: `La cita se ha creado exitosamente<br><br>
+                 <strong>ID de cita:</strong> ${appointmentId}`,
+            icon: 'success'
+        });
+    }
+
+    function showAppointmentError(error) {
+        let message = 'Error al crear la cita';
+    
+        if (error.message.includes('ServiceRequest')) {
+            message = 'Error en la solicitud de servicio';
+        } else if (error.message.includes('date')) {
+            message = 'Error en las fechas de la cita';
+        } else if (error.message.includes('already exists')) {
+            message = 'Ya existe una cita para esta solicitud';
+        }
+    
+    Swal.fire({
+        title: 'Error',
+        text: `${message}: ${error.message}`,
+        icon: 'error'
+    });
+}
 
     // Initialize the form
     initForm();
