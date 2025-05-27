@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function() {
         buttonText.textContent = 'Procesando...';
         
         try {
-            // Create Appointment object
+            // Create Appointment object with patient identifier
             const appointment = {
                 resourceType: "Appointment",
                 status: document.getElementById('status').value,
@@ -39,7 +39,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 participant: [
                     {
                         actor: {
-                            reference: document.getElementById('patientReference').value,
+                            identifier: {
+                                system: document.getElementById('patientIdentifierSystem').value,
+                                value: document.getElementById('patientIdentifierValue').value
+                            },
                             type: "Patient"
                         },
                         status: "accepted"
