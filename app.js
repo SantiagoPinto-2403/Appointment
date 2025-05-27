@@ -74,27 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner"></span> Procesando...';
 
-            // Validate form first
-            const errors = validateForm();
-            if (errors.length > 0) {
-                throw new Error(errors.join('\n'));
-            }
-
-            // Get and properly format dates
-            const dateValue = document.getElementById('appointmentDate').value;
-            if (!dateValue) {
-                throw new Error('Por favor seleccione una fecha válida');
-            }
-
-            // Create Date objects with proper time handling
-            const startTime = new Date(`${dateValue}T09:00:00`);
-            const endTime = new Date(`${dateValue}T09:30:00`);
-            
-            // Convert to ISO strings (UTC)
-            const startISO = startTime.toISOString();
-            const endISO = endTime.toISOString();
-
-            // Gather form data
+        // Gather form data
             const formData = {
                 resourceType: "Appointment",
                 status: "booked",
@@ -102,8 +82,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     reference: `ServiceRequest/${currentServiceRequest.id}`,
                     display: `Solicitud ${currentServiceRequest.id}`
                 }],
-                start: startISO,
-                end: endISO,
+                start: `${document.getElementById('appointmentDate').value}T09:00:00Z`,
+                end: `${document.getElementById('appointmentDate').value}T09:30:00Z`,
                 appointmentType: {
                     coding: [{
                         system: "http://terminology.hl7.org/CodeSystem/v2-0276",
@@ -118,14 +98,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         display: "Radiólogo asignado"
                     },
                     status: "accepted"
-                }],
-                patientInstruction: "Llegar 15 minutos antes con orden médica"
+                }]
             };
 
-            // Submit to server
+        // Submit to server
             const result = await submitAppointmentToServer(formData);
         
-            // Show success message
+        // Show success message
             showAppointmentSuccess(result.id);
 
         } catch (error) {
@@ -226,15 +205,48 @@ document.addEventListener('DOMContentLoaded', function() {
         return errors;
     }
 
+    function createAppointmentData() {
+        const appointmentDate = document.getElementById('appointmentDate').value;
+        const modality = document.getElementById('modality').value;
+        const notes = document.getElementById('notes').value.trim();
+        
+        return {
+            resourceType: "Appointment",
+            status: "booked",
+            basedOn: [{ 
+                reference: `ServiceRequest/${currentServiceRequest.id}`,
+                display: `Solicitud ${currentServiceRequest.id}`
+            }],
+            start: `${appointmentDate}T09:00:00Z`,
+            end: `${appointmentDate}T09:30:00Z`,
+            appointmentType: { 
+                coding: [{
+                    system: "http://terminology.hl7.org/CodeSystem/v2-0276",
+                    code: modality
+                }],
+                text: getModalityText(modality)
+            },
+            description: notes || "Cita radiológica programada",
+            participant: [{
+                actor: { 
+                    reference: "Practitioner/radiologo",
+                    display: "Radiólogo asignado"
+                },
+                status: "accepted"
+            }],
+            patientInstruction: "Llegar 15 minutos antes con orden médica"
+        };
+    }
+
     async function submitAppointmentToServer(appointmentData) {
         try {
-            // Validate required fields
+        // Validate required fields
             if (!appointmentData.basedOn || !appointmentData.basedOn[0]?.reference) {
                 throw new Error('Missing ServiceRequest reference');
             }
 
-            // Ensure dates are valid
-            if (!isValidDate(appointmentData.start) || !isValidDate(appointmentData.end)) {
+        // Ensure dates are properly formatted
+            if (!isValidISOString(appointmentData.start) || !isValidISOString(appointmentData.end)) {
                 throw new Error('Invalid date format');
             }
 
@@ -265,10 +277,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function isValidDate(dateString) {
-        if (!dateString) return false;
-        const date = new Date(dateString);
-        return !isNaN(date.getTime());
+    function isValidISOString(dateString) {
+        try {
+            return new Date(dateString).toISOString() === dateString;
+        } catch (e) {
+            return false;
+        }
     }
     
     function showSuccessMessage(responseData) {
@@ -349,11 +363,9 @@ document.addEventListener('DOMContentLoaded', function() {
         Swal.fire({
             title: 'Cita creada',
             html: `La cita se ha creado exitosamente<br><br>
-                 <strong>ID de cita:</strong> ${appointmentId}<br>
-                 <strong>Fecha:</strong> ${formatDate(document.getElementById('appointmentDate').value)}`,
+                 <strong>ID de cita:</strong> ${appointmentId}`,
             icon: 'success'
         });
-        initForm(); // Reset the form after successful submission
     }
 
     function showAppointmentError(error) {
@@ -361,18 +373,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
         if (error.message.includes('ServiceRequest')) {
             message = 'Error en la solicitud de servicio';
-        } else if (error.message.includes('date') || error.message.includes('fecha')) {
+        } else if (error.message.includes('date')) {
             message = 'Error en las fechas de la cita';
-        } else if (error.message.includes('already exists') || error.message.includes('ya existe')) {
+        } else if (error.message.includes('already exists')) {
             message = 'Ya existe una cita para esta solicitud';
         }
     
-        Swal.fire({
-            title: 'Error',
-            html: `<strong>${message}</strong><br><br>${error.message}`,
-            icon: 'error'
-        });
-    }
+    Swal.fire({
+        title: 'Error',
+        text: `${message}: ${error.message}`,
+        icon: 'error'
+    });
+}
 
     // Initialize the form
     initForm();
