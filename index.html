@@ -6,7 +6,6 @@
     <title>Agendar Cita</title>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        /* [Same exact styles as your Patient form] */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f5f7fa;
@@ -18,6 +17,7 @@
             padding: 20px;
             color: #333;
         }
+        
         .container {
             background: white;
             padding: 30px;
@@ -27,20 +27,131 @@
             max-width: 500px;
             margin-top: 20px;
         }
-        /* [Rest of your CSS remains identical] */
+        
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        
+        .required-field::after {
+            content: " *";
+            color: #e74c3c;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .search-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        
+        .search-container input {
+            flex: 1;
+        }
+        
+        .search-container button {
+            width: auto;
+            padding: 10px 15px;
+            margin-top: 0;
+        }
+        
+        .info-display {
+            padding: 10px;
+            background-color: #f0f8ff;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Agendar Cita</h1>
         <form id="appointmentForm">
+            <!-- Service Request Reference -->
             <div class="form-group">
                 <label for="serviceRequestId" class="required-field">Solicitud de Servicio</label>
-                <input type="text" id="serviceRequestId" placeholder="SR-12345" required>
-                <button type="button" id="verifyRequestBtn" class="search-btn">Verificar</button>
+                <div class="search-container">
+                    <input type="text" id="serviceRequestId" placeholder="SR-12345" required>
+                    <button type="button" id="verifyRequestBtn">Verificar</button>
+                </div>
                 <div id="requestInfo" class="info-display"></div>
             </div>
             
+            <!-- Appointment Details -->
             <div class="form-group">
                 <label for="appointmentDate" class="required-field">Fecha de Cita</label>
                 <input type="date" id="appointmentDate" required>
@@ -51,15 +162,17 @@
                 <select id="modality" required>
                     <option value="">Seleccione...</option>
                     <option value="RX">Rayos X</option>
-                    <option value="CT">Tomografía</option>
-                    <option value="MRI">Resonancia</option>
+                    <option value="CT">Tomografía (CT)</option>
+                    <option value="MRI">Resonancia Magnética (MRI)</option>
                     <option value="US">Ultrasonido</option>
+                    <option value="MG">Mamografía</option>
                 </select>
             </div>
             
+            <!-- Additional Information -->
             <div class="form-group">
                 <label for="notes">Notas Adicionales</label>
-                <textarea id="notes" placeholder="Indicaciones especiales..."></textarea>
+                <textarea id="notes" placeholder="Indicaciones especiales, preparación requerida, etc."></textarea>
             </div>
             
             <button type="submit" id="submitBtn">
